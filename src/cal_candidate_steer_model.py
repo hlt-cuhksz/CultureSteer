@@ -4,7 +4,7 @@ import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '4'  # 设置可见的GPU设备
 from cal_candidate import main, var_main
 from config import Config, MODEL_PATH
-from lm_steer.models.get_model import get_model
+from lm_steer.get_model import get_model
 import json
 
 if __name__ == "__main__":
@@ -18,12 +18,11 @@ if __name__ == "__main__":
     parser.add_argument('--baseline',default=False)
     parser.add_argument('--runner', default='cal_s', type=str,help = 'whether to cal candidate p in GPU or cal var in CPU')
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--model_name", type=str, default='Llama')
-    parser.add_argument("--adaptor_class", type=str, default="multiply")
-    parser.add_argument("--adapted_component", type=str, default="final_layer")
+
 
     # Training related
+    parser.add_argument("--adaptor_class", type=str, default="multiply")
+    parser.add_argument("--adapted_component", type=str, default="final_layer")
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--gamma_mean", type=float, default=0.99)
     parser.add_argument("--epochs", type=int, default=5)
