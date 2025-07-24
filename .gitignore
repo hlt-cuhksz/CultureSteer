@@ -1,0 +1,9 @@
+.idea/*
+*.pyc
+.history
+__pycache__
+.output/*
+.vscode
+.git
+control/*
+results/*
