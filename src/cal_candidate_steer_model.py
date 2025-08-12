@@ -1,7 +1,7 @@
 import torch
 import argparse
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '4'  # 设置可见的GPU设备
+# os.environ['CUDA_VISIBLE_DEVICES'] = '1'  # 设置可见的GPU设备
 from cal_candidate import main, var_main
 from config import Config, MODEL_PATH
 from lm_steer.get_model import get_model
@@ -11,10 +11,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     # candidate_related
     parser.add_argument('--model_name',default='Llama',type=str)
-    parser.add_argument('--data_dir',default='../../dataset',type=str)
+    parser.add_argument('--data_dir',default='../dataset',type=str)
     parser.add_argument('--lang',default='USA',type = str)
     parser.add_argument('--score_dir',default='../results/scores',type=str)
-    parser.add_argument('--pwk_dir',default='../results/jsons',type=str)
+
     parser.add_argument('--baseline',default=False)
     parser.add_argument('--runner', default='cal_s', type=str,help = 'whether to cal candidate p in GPU or cal var in CPU')
 
@@ -39,16 +39,24 @@ if __name__ == "__main__":
     parser.add_argument("--epsilon", type=float, default=1e-3)
     parser.add_argument("--init_var", type=float, default=1e-2)
     parser.add_argument("--rank", type=int, default=1000) # the rank of projected matrix
-    parser
+
+    parser.add_argument("--max_token",type=int,default=8)
+    parser.add_argument("--temperature",type=float,default=1.0)
+
+    parser.add_argument("--cross_steer_lang",default=None)
+    parser.add_argument("--topk_type",default='pwk',type=str,help='the type of top k to calculate, pwk@k or dcg@k')
+    parser.add_argument('--topk_dir',default='../results/jsons',type=str)
 
     args = parser.parse_args()
-
+    args.topk_dir = args.topk_dir if args.topk_type == 'pwk' else '../results/dcg_jsons'
     # set_seed(args.seed)
     if args.runner == 'cal_p':
         model_paths = MODEL_PATH
-        ckpt_path = f'../save_model/{args.model_name}/{args.steer_type}.ckpt'
+        ckpt_path = f'/data/daixl/my_project/word_asso/save_model/{args.model_name}/{args.steer_type}.ckpt'
         args = parser.parse_args()
         device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+        if args.cross_steer_lang and args.cross_steer_lang == 'wo':
+            args.epsilon = 0.0 # without steer layer
         model, tokenizer = get_model(
             model_paths[args.model_name], args.adapted_component, args.adaptor_class,
             args.num_steers,
@@ -66,11 +74,15 @@ if __name__ == "__main__":
         config.device = device
         config.model = model
         args.model_name = args.model_name + '_' + f'{args.steer_type}'
+        if hasattr(args,'cross_steer_lang') and args.cross_steer_lang:
+            args.model_name = args.cross_steer_lang + '_' + args.model_name 
         main(args,config)
     elif args.runner == 'cal_s':
         config = Config(args.model_name) # 此时model还是Llama或Qwen
         config.device = torch.device('cpu') # 强制cpu不读取模型
         model, tokenizer, device = config.select_model()
         args.model_name = args.model_name + '_' + f'{args.steer_type}'
+        if hasattr(args,'cross_steer_lang') and args.cross_steer_lang:
+            args.model_name = args.cross_steer_lang + '_' + args.model_name 
         var_main(args,config)
 

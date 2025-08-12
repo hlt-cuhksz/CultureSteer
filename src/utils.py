@@ -24,7 +24,6 @@ def get_ranking(asso_words, score, batch_size, lang, config, token_space=True):
     # model = config.model
     # GPT优化：复杂度 + batch计算prob
     score = score.squeeze(dim=1)  # Removing extra dimension
-    score = score[:5,:]
     ans_probs_total = []
     score_prob = torch.softmax(score,dim = -1)
     max_prob_text = tokenizer.decode(torch.argmax(score_prob,dim = -1))
@@ -62,7 +61,7 @@ def get_ranking(asso_words, score, batch_size, lang, config, token_space=True):
     return [prob.cpu().item() if prob != 0.0 else 0 for prob in ans_probs_total]
 
 
-def cal_candidate(data,lang,config,template=None,args=None):
+def cal_candidate(data,lang,config,args=None):
     # 一条一条的计算，暂时不要batch计算
     # 用p存放candidata的概率
     # 如果是few-shot则添加前缀
@@ -70,8 +69,38 @@ def cal_candidate(data,lang,config,template=None,args=None):
 
     for i in tqdm(range(len(data))):
         cue = data[i]['EN cue'] if lang != 'CN' else data[i]['CN cue']
+        if 'csp' in args.model_name or 'cct' in args.model_name:
+            template = 'csp' if 'csp' in args.model_name else 'cct'
+        else:
+            template = None
+        prompt = candidate_template(cue,lang,template,args) #prompts 
+        if args and 'shot' in args.model_name:
+            few_shot = args.model_name[args.model_name.find('shot')-1]
+            few_shot = int(few_shot)       
+            randindex = random.sample(range(len(data)),few_shot)
+            while randindex.count(i) > 0: # 确保randindex中不包含当前的i
+                randindex = random.sample(range(len(data)),few_shot)
+            selected_examples = [data[j] for j in randindex]
+            prefix_parts = []
+            cue_key = 'CN cue' if lang == 'CN' else 'EN cue'
+            for example in selected_examples:
+                example_cue = example[cue_key]
+                # randindex = random.sample(range(len(example['asso words'])),1)
 
-        prompt = candidate_template(cue,lang,template) #prompts 
+                example_asso_word = ','.join(example['asso words'])
+                
+                
+                # 根据语言选择对应的模板
+                if lang == 'CN':
+                    example_text = f'当提起"{example_cue}",人们往往会想到的词是:{example_asso_word}'
+                else:
+                    example_text = f'When "{example_cue}" is mentioned, people often think of the words: {example_asso_word}'
+                
+                prefix_parts.append(example_text)
+            
+            # 组合前缀，用换行符分隔
+            few_shot_prefix = '\n'.join(prefix_parts) + '\n'
+            prompt = few_shot_prefix + prompt
         P_cand = __cal_candidate(prompt,lang,config,args=args)
         if lang != 'CN':
             save_dict[data[i]['EN cue']] = P_cand
@@ -80,13 +109,19 @@ def cal_candidate(data,lang,config,template=None,args=None):
     return save_dict
 
 
-def __cal_candidate(prompt,lang, config, args=None):
+def __cal_candidate(prompt, lang, config, args=None):
     tokenizer = config.tokenizer
     device = config.device
     model = config.model
     if hasattr(args,'steer_type') and args.steer_type == 'lora_steer':
         Culture = ['USA','UK','OC','CN']
-        steer_values = torch.tensor([Culture.index(lang)], device=device)
+        if args.cross_steer_lang: # 如果是cross steer验证的情况
+            if args.cross_steer_lang in Culture:
+                steer_values = torch.tensor([Culture.index(args.cross_steer_lang)], device=device)
+            else:
+                steer_values = torch.tensor([Culture.index('USA')], device=device) # 默认使用USA -- 但是steer层的epsilon值已经置0
+        else:
+            steer_values = torch.tensor([Culture.index(lang)], device=device)
         scores = steer_eazy_generate(prompt, steer_values, tokenizer, model)
         return scores
     else:
@@ -99,9 +134,9 @@ def __cal_candidate(prompt,lang, config, args=None):
         outputs = model.generate(
                 input_ids=input_ids, 
                 attention_mask=attention_mask, 
-                max_new_tokens=5, 
+                max_new_tokens=args.max_token if args else 5, 
                 output_scores=True,
-                temperature = 1.0,
+                temperature = args.temperature if args else 1.0,
                 return_dict_in_generate=True
             )
         generated_ids = outputs['sequences']
@@ -109,14 +144,24 @@ def __cal_candidate(prompt,lang, config, args=None):
         scores = torch.stack(scores, dim=0) # 把每一步解码合并成tensor
         return scores
 
+
 # evaluate
-def _cal_R(asso_index, prob_index, top_k):
-    top_index = prob_index[:top_k] if len(prob_index) >= top_k else prob_index[:]
-    R = 0.0
-    for i, idx in enumerate(top_index):
-        if idx in asso_index:
-            R += 1 / (asso_index.index(idx) + 1) # 检索出来的index在原index的位置的索引 + 1 的倒数
-    return R / np.sum([1 / (i+1) for i in range(len(asso_index))])
+def _cal_TOPK(asso_index, prob_index, top_k, args):
+    if args.topk_type == 'pwk':
+        top_index = prob_index[:top_k] if len(prob_index) >= top_k else prob_index[:]
+        R = 0.0
+        for i, idx in enumerate(top_index):
+            if idx in asso_index:
+                R += 1 / (asso_index.index(idx) + 1) # 检索出来的index在原index的位置的索引 + 1 的倒数
+        return R / np.sum([1 / (i+1) for i in range(len(asso_index))])
+    elif args.topk_type == 'dcg':
+        top_index = prob_index[:top_k] if len(prob_index) >= top_k else prob_index[:]
+        dcg = 0.0
+        for i, idx in enumerate(top_index):
+            rel = 1 if idx in asso_index else 0
+            rank = i + 1
+            dcg += rel / np.log2(rank + 1)
+        return dcg
 
 def asso_word_set_main(args):
     EN_asso_word_set, CN_asso_word_set = [], []

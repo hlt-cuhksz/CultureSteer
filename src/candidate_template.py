@@ -1,18 +1,21 @@
-def candidate_template(cue_word, lang, type=None):
+def candidate_template(cue_word, lang, type=None,args=None):
     sys_template = None
-    # culture_infor = f'You are a person with {lang2cultrue(lang)} cultural background. ' if lang != 'CN' else f'你是一个中国文化背景的人。'
+
     if lang != 'CN':
         culture_infor = f'You are a person with {lang2cultrue(lang)} cultural background.'
-        template = f'When "{cue_word}" is mentioned, people often think of the following three words:'
+        template = f'When "{cue_word}" is mentioned, people often think of the word:'
         task_infor = 'You will be performing a word association task. Please directly answer the association word.'
         cross_infor = f'Before you respond, take a moment to think about how {lang2cultrue(lang)} culture is different from {", ".join(lang2diffculture(lang))} cultures.'
     else:
         culture_infor = f'你是一个中国文化背景的人。'
-        template = f'当提起"{cue_word}",人们往往会想到的三个词是:'
+        template = f'当提起"{cue_word}",人们往往会想到的词是:'
         task_infor = '你将进行词联想任务，请直接说出你联想到的词。'
         cross_infor = f'在回答之前, 请你注意中国文化与美国、英国、大洋洲文化的不同。'
+    if 'lora_steer' in args.model_name:
+        template = template.replace('词是','三个词是')
+        template = template.replace('of the word','of following three words')
     if type:
-        if type == 'inf':
+        if type == 'csp':
             sys_template = culture_infor + task_infor
         elif type == 'cct':
             sys_template = culture_infor + task_infor + cross_infor

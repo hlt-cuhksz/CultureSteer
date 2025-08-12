@@ -1,5 +1,5 @@
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '4'  # 设置可见的GPU设备
+# os.environ['CUDA_VISIBLE_DEVICES'] = '4'  # 设置可见的GPU设备
 from tqdm import tqdm
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -9,7 +9,7 @@ import json
 from lm_steer.utils import set_seed
 from lm_steer.get_model import get_model
 from lm_steer.utils import RunningMean
-from utils import generate
+from utils import steer_generate
 from config import MODEL_PATH
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(os.path.dirname(current_dir))
@@ -68,8 +68,8 @@ def main(args):
 
             # batch_stance[torch.arange(batch_stance.shape[0]), batch_label] = 1
             batch_stance[torch.arange(batch_stance.shape[0]).to(device), batch_label.to(device)] = 1  # batch_label应转到正确设备
-            if args.dummy_steer is not None:
-                batch_stance[:, args.dummy_steer] = 1
+            # if args.dummy_steer is not None:
+            #     batch_stance[:, args.dummy_steer] = 1
             batch_text = batch_text
             tokenized = tokenizer(batch_text, padding=True,
                                   max_length=args.max_length, truncation=True)
@@ -94,12 +94,12 @@ def main(args):
                 ], ckpt_name)
                 # 生成当前轮次的推理结果 -- generate内部是逐条推理
                 batch_prompts = [text[:text.find(':') + 1] for text in batch_text]
-                cur_score = generate(batch_prompts,batch_stance,tokenizer,model) # 返回的score暂时没作用 只是print当前的回答
+                cur_score = steer_generate(batch_prompts,batch_stance,tokenizer,model) # 返回的score暂时没作用 只是print当前的回答
             total_step += 1
             loss_mean.update(loss)
             pbar.set_description(
                 f"Epoch {epoch+1}/{args.epochs}: {loss_mean.value}")
-            
+    torch.save([args, model.state_dict(), total_step], ckpt_name)        
 
 
 if __name__ == "__main__":

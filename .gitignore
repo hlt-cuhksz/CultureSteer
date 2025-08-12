@@ -7,3 +7,7 @@ __pycache__
 .git
 control/*
 results/*
+save_model/*
+extra_models/*
+CultureLLM/*
+data/*

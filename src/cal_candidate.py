@@ -1,6 +1,6 @@
 # 设置candidate的prompt并将asso word作为候选词, 得到候选词id并计算平均概率
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '4'  # 设置使用的GPU设备
+# os.environ['CUDA_VISIBLE_DEVICES'] = '4'  # 设置使用的GPU设备
 from tqdm import tqdm
 import json
 from scipy.stats import spearmanr
@@ -14,10 +14,10 @@ import numpy as np
 # from candidate_template import candidate_template
 from tqdm import tqdm
 try:
-    from .utils import _cal_R, cal_candidate, get_ranking, asso_word_set_main
+    from .utils import _cal_TOPK, cal_candidate, get_ranking, asso_word_set_main
     from .config import Config
 except:
-    from utils import _cal_R, cal_candidate, get_ranking, asso_word_set_main
+    from utils import _cal_TOPK, cal_candidate, get_ranking, asso_word_set_main
     from config import Config
 TOP_K = [3,5,10,20]
 
@@ -42,7 +42,7 @@ def cal_overall(data,args):
         result_sort = {**{f'total_{k}':result['total']},
                           **result_sort}
         result_total[str(k)] = result_sort # 把当前top选定结果作为一个value
-    with open(os.path.join(args.pwk_dir, f'{args.lang}_{args.model_name}.json'), 'w') as f:
+    with open(os.path.join(args.topk_dir, f'{args.lang}_{args.model_name}.json'), 'w') as f:
         json.dump(result_total, f, indent=4)
     print(f'finish written {args.lang}_{args.model_name}.json')
     return result_total
@@ -64,7 +64,7 @@ def main(args,config):
 def var_main(args,config):
     with open(os.path.join(args.data_dir, f'{args.lang}_steer.json'), 'r') as f:
         data = json.load(f)
-    # data = data[:20]
+    # data = data[:2]
     def max_RK(token_space):
         ans_prob = get_ranking(asso_word_set['word set'], score_pt[cue].to(config.device), args.batch_size, lang, config, token_space=token_space)
         data[i]['candidate_p'] = ans_prob
@@ -78,7 +78,6 @@ def var_main(args,config):
     with open(asso_word_set_path, 'r') as f:
         asso_word_set = json.load(f)
     asso_word_set['word set'] = list(set(asso_word_set['word set'])) # 再次确保去重
-    # data = data[:2] # try
     if not hasattr(args,'steer_type'): # 如果不是lora_steer 则只有两个语言的score(英语的都一样)
         lang = 'EN' if args.lang != 'CN' else 'CN'
     else:
@@ -95,20 +94,26 @@ def var_main(args,config):
         asso_index_t, prob_index_t = max_RK(True)
         asso_index_f, prob_index_f = max_RK(False)
         for top_k in TOP_K:
-            data[i][f'pwk_{top_k}'] = max(_cal_R(asso_index_t, prob_index_t, top_k), _cal_R(asso_index_f, prob_index_f, top_k))
+            data[i][f'pwk_{top_k}'] = max(_cal_TOPK(asso_index_t, prob_index_t, top_k,args), _cal_TOPK(asso_index_f, prob_index_f, top_k,args))
     cal_overall(data,args)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name',default='Llama',type=str)
+    parser.add_argument('--model_name',default='Llama3shot',type=str)
     parser.add_argument('--data_dir',default='../dataset',type=str)
     parser.add_argument('--lang',default='USA',type = str)
     parser.add_argument('--score_dir',default='../results/scores',type=str)
-    parser.add_argument('--pwk_dir',default='../results/jsons',type=str)
+
     parser.add_argument('--batch_size',default=64,type=int)
     parser.add_argument('--baseline',default=False)
     parser.add_argument('--runner', default='cal_p', type=str,help = 'calculate the scores or calculate the pwk based on scores')
+    parser.add_argument("--max_token",type=int,default=5)
+    parser.add_argument("--temperature",type=float,default=1.0)
+    parser.add_argument("--topk_type",default='pwk',type=str,help='the type of top k to calculate, pwk@k or dcg@k')
+    parser.add_argument('--topk_dir',default='../results/jsons',type=str)
+
     args = parser.parse_args()
+    args.topk_dir = args.topk_dir if args.topk_type == 'pwk' else '../results/dcg_jsons'
     config = Config(args.model_name)
 
     if args.runner == 'cal_p':
@@ -117,7 +122,8 @@ if __name__ == '__main__':
     elif args.runner == 'cal_s':
         config.device = torch.device('cpu') # no required GPU
         model, tokenizer, device = config.select_model()
-        asso_word_set_main(args) # get word set first
+        # asso_word_set_main(args) # get word set first
         var_main(args,config)
-
+    else:
+        asso_word_set_main(args) # get word set first
 
