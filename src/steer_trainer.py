@@ -6,9 +6,9 @@ from torch.utils.data import Dataset, DataLoader
 from torch.optim import Adam
 import argparse
 import json
-from lm_steer.utils import set_seed
-from lm_steer.get_model import get_model
-from lm_steer.utils import RunningMean
+from culturesteer.utils import set_seed
+from culturesteer.get_model import get_model
+from culturesteer.utils import RunningMean
 from utils import steer_generate
 from config import MODEL_PATH
 current_dir = os.path.dirname(os.path.abspath(__file__))

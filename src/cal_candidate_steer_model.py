@@ -4,7 +4,7 @@ import os
 # os.environ['CUDA_VISIBLE_DEVICES'] = '1'  # 设置可见的GPU设备
 from cal_candidate import main, var_main
 from config import Config, MODEL_PATH
-from lm_steer.get_model import get_model
+from culturesteer.get_model import get_model
 import json
 
 if __name__ == "__main__":

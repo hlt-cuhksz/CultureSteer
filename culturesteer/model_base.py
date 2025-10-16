@@ -4,7 +4,7 @@ import torch
 import numpy as np
 import torch.nn.functional as F
 
-from lm_steer.utils import set_seed
+from culturesteer.utils import set_seed
 from .model_utils import find_max_subspans
 
 
