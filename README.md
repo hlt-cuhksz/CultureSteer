@@ -56,10 +56,19 @@ CultureSteer/
 If you use this work in your research, please cite:
 
 ```bibtex
-@article{dai2025wordworldevaluatemitigate,
-  title={From Word to World: Evaluate and Mitigate Culture Bias in LLMs via Word Association Test},
-  author={Dai, Xunlian and Zhou, Li and Wang, Benyou and Li, Haizhou},
-  journal={arXiv preprint arXiv:2505.18562},
-  year={2024}
+@inproceedings{dai-etal-2025-word,
+    title = "From Word to World: Evaluate and Mitigate Culture Bias in {LLM}s via Word Association Test",
+    author = "Dai, Xunlian  and
+      Zhou, Li  and
+      Wang, Benyou  and
+      Li, Haizhou",
+    booktitle = "Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing",
+    month = nov,
+    year = "2025",
+    address = "Suzhou, China",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2025.emnlp-main.1246/",
+    pages = "24521--24537",
+    ISBN = "979-8-89176-332-6",
 }
 ```
